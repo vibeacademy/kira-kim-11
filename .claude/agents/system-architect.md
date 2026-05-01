@@ -433,28 +433,115 @@ Use the **ATAM (Architecture Tradeoff Analysis Method)**:
 
 ## Project-Specific Domain Analysis
 
-<!--
-TEMPLATE: Fill in project-specific domain analysis here when using this template.
+This project is a marketplace for rare and out-of-production stuffies.
+The product is small enough today that everything lives in one bounded
+context — but it's worth naming the seams now so we can split cleanly
+later if the product grows.
 
-Example structure:
 ### Bounded Contexts
 
-#### 1. [Context Name]
+#### 1. Identity
+
 **Aggregates:**
-- `Entity` (root) → `ChildEntity1`, `ChildEntity2`
+- `User` (root) → `EmailVerification`
 
 **Value Objects:**
-- `ValueObject1`, `ValueObject2`
+- `Email`, `PasswordHash`, `SessionToken`
 
 **Domain Events:**
-- `Event1`, `Event2`
+- `UserSignedUp`, `EmailVerified`, `UserLoggedIn`
 
 **Ubiquitous Language:**
-- Term1, Term2, Term3
+- User, signup, verification, session.
+
+#### 2. Catalog (Listings)
+
+**Aggregates:**
+- `Listing` (root) → `Photo`, `ListingEmbedding`
+
+**Value Objects:**
+- `Era`, `Manufacturer`, `Condition`, `ListingStatus`
+  (`active` / `sold` / `withdrawn`)
+
+**Domain Events:**
+- `ListingCreated`, `ListingPhotoUploaded`, `ListingEmbedded`,
+  `ListingWithdrawn`
+
+**Ubiquitous Language:**
+- Listing, seller, photo, era, manufacturer, condition, embedding.
+
+#### 3. Discovery (Search)
+
+**Aggregates:**
+- `SearchQuery` (transient — not persisted in v1)
+
+**Value Objects:**
+- `QueryText`, `QueryEmbedding`, `RankedResult`
+
+**Domain Events:**
+- `SearchPerformed` (logged for ranking eval and Phase 2 tuning)
+
+**Ubiquitous Language:**
+- Query, embedding, vector similarity, full-text search, RRF
+  (reciprocal-rank fusion), relevance.
+
+#### 4. Trading (Bids and Favorites)
+
+**Aggregates:**
+- `Bid` (root)
+- `Favorite` (root, but trivial — a User↔Listing join)
+
+**Value Objects:**
+- `Money` (`amount_cents` + `currency`), `BidStatus`
+  (`active` / `withdrawn` / `accepted`)
+
+**Domain Events:**
+- `BidPlaced`, `BidWithdrawn`, `ListingFavorited`, `ListingUnfavorited`
+
+**Ubiquitous Language:**
+- Bid, bidder, favorite, accepted bid, withdrawn bid.
 
 ### Context Mapping
-[Diagram showing how contexts relate to each other]
--->
+
+```text
+   Identity ────owns───▶ Catalog ◀──ranks── Discovery
+       │                    ▲
+       │                    │ targets
+       └───────acts in────▶ Trading
+```
+
+- Identity is upstream of everything; Catalog and Trading both reference
+  `User`.
+- Discovery reads Catalog (and the embedding sub-aggregate) but does
+  not write to it.
+- Trading depends on Catalog (a Bid points at a Listing, a Favorite
+  points at a Listing) but Catalog doesn't know about bids during
+  v1 — listing status is set explicitly by the seller.
+
+### Architecture Patterns In Use
+
+- **Modular monolith** — single Cloud Run service, internal modules
+  per context. Cross-context calls go through service-layer functions,
+  not direct ORM access.
+- **Hybrid retrieval (vector + lexical)** — `pgvector` cosine similarity
+  fused with Postgres full-text search via reciprocal-rank fusion.
+- **Out-of-band embedding** — `BackgroundTasks` decouples seller
+  request latency from the embedding API.
+- **Direct-to-storage uploads** — V4 signed URLs for GCS PUTs; the app
+  never sees photo bytes.
+- **Single transactional store** — Listing and ListingEmbedding live in
+  the same Postgres database, so we get atomicity for free.
+
+### Key Technical Decisions (see ADRs in TECHNICAL-ARCHITECTURE.md)
+
+- ADR-001: Modular monolith on Cloud Run.
+- ADR-002: `pgvector` in Neon (no separate vector store).
+- ADR-003: Signed-URL direct uploads to GCS.
+- ADR-004: Email + password auth; defer Identity Platform.
+- ADR-005: `BackgroundTasks` now, Cloud Tasks later.
+
+When advising on changes that cross these decisions, write a new ADR;
+do not silently override an existing one.
 
 ## Communication Style
 
