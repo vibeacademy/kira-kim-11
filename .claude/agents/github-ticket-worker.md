@@ -30,15 +30,24 @@ You are a Senior Full-Stack Engineer. Your primary responsibility is to autonomo
 
 ## Project Context
 
-<!--
-TEMPLATE: Fill in project-specific context here when using this template.
-
-Example fields to populate:
-- **Platform(s)**: [Web, Mobile, Desktop, etc.]
-- **Tech Stack**: [Languages, frameworks, and tools used]
-- **Architecture**: [Monolith, microservices, serverless, etc.]
-- **Key Quality Standards**: [Performance, accessibility, security requirements]
--->
+- **Product**: A web marketplace for rare / out-of-production stuffies.
+  The single differentiator is natural-language search. User roles:
+  buyer (search / favorite / bid) and seller (list).
+- **Platform**: Web only. Server-rendered HTML + HTMX fragments — no SPA.
+- **Tech Stack**: Python 3.12, FastAPI + Uvicorn, SQLModel + Alembic,
+  Jinja2 + HTMX 2.x, uv, pytest + httpx.
+- **Architecture**: Modular monolith on Cloud Run, backed by Neon
+  (Postgres + `pgvector`) and a GCS bucket for listing photos. See
+  `docs/TECHNICAL-ARCHITECTURE.md` for the full design and ADRs.
+- **Key Quality Standards**:
+  - `ruff check .`, `ruff format .`, `mypy app/`, and `pytest` all clean
+    before pushing. The pre-push hook enforces this; do NOT use `--no-verify`.
+  - 80% coverage target on `app/`.
+  - Search-ranking eval set in `tests/` must stay green when touching
+    search code — that test guards the differentiator.
+  - Every model change ships with an Alembic revision.
+  - HTMX endpoints: never return a full page from a fragment route;
+    tests should assert `"<html" not in response.text`.
 
 ## Tools and Capabilities
 
@@ -133,28 +142,55 @@ ask the user to run `gh auth login` (solo) or
 
 ### 3. Implementation Standards
 
-You must strictly adhere to the project's architecture and coding standards defined in `CLAUDE.md`.
+You must strictly adhere to the project's architecture and coding standards
+defined in `CLAUDE.md` and `docs/TECHNICAL-ARCHITECTURE.md`.
 
-<!--
-TEMPLATE: Fill in project-specific implementation standards here.
-
-Example sections:
 **Technology Stack:**
-- [Language and version]
-- [Framework]
-- [Build tooling]
-- [Testing framework]
+- Language: Python 3.12.
+- Framework: FastAPI + Uvicorn.
+- DB layer: SQLModel + Alembic. Database is Postgres (Neon in prod,
+  in-memory SQLite for tests via the `TestClient` fixture pattern).
+- Templates: Jinja2 + HTMX 2.x for partial updates. No SPA build step.
+- Build tooling: `uv` for dependencies; `pyproject.toml` is the source of truth.
+- Testing: `pytest` + `httpx`. Conftest fixture provides a per-test
+  in-memory SQLite session via `app.dependency_overrides[get_session]`.
+
+**Module Layout:**
+- Routes go in `app/api/<resource>.py` and are included from `app/main.py`.
+- Models go in `app/models/<entity>.py`.
+- Cross-cutting services (embeddings, mail, GCS upload-URL minting) go
+  in `app/services/`.
+- Tests mirror the source tree under `tests/`.
 
 **Code Quality:**
-- [Type safety requirements]
-- [Code style guidelines]
-- [Documentation standards]
+- Type hints required on public functions; `mypy app/` must pass.
+- `ruff check .` and `ruff format .` enforced. Do not disable rules
+  without justification in the PR.
+- Naming: `snake_case` functions and modules, `PascalCase` SQLModel classes.
+- Comments: only for non-obvious WHY (per CLAUDE.md root style guide).
+- Never hardcode application URLs — use request headers or
+  `request.base_url` (see `docs/PATTERN-LIBRARY.md` pattern #4).
 
 **Testing Requirements:**
-- [Test types required]
-- [Coverage thresholds]
-- [Pre-commit checks]
--->
+- Every new route gets a TestClient HTTP test.
+- HTMX fragment routes assert HTML substrings AND
+  `assert "<html" not in response.text`.
+- Every model change ships with an Alembic revision; CI runs
+  `alembic upgrade head` against an ephemeral Neon branch.
+- Search-affecting changes update or extend the search-ranking eval
+  set in `tests/`.
+- Coverage target on `app/`: 80%.
+- Pre-push hook (`scripts/hooks/pre-push`) runs lint + tests; never
+  bypass with `--no-verify`.
+
+**Architectural Defaults (don't break without an ADR):**
+- One Cloud Run service. Avoid splitting services for v1.
+- Listing photos: signed GCS URL upload, never stream through the app.
+- Embedding generation: `BackgroundTasks` in v1; do not block requests
+  on the embedding API.
+- Search: `pgvector` + Postgres FTS in the same Neon DB. No separate
+  vector store.
+- Auth: bcrypt + signed-cookie sessions; do not roll new session crypto.
 
 ### 4. Pull Request Creation
 

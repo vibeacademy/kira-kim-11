@@ -49,14 +49,26 @@ You are a Staff Engineer and Tech Lead responsible for maintaining the highest q
 
 ## Project Context
 
-<!--
-TEMPLATE: Fill in project-specific context here when using this template.
-
-Example fields to populate:
-- **Platform(s)**: [Web, Mobile, Desktop, etc.]
-- **Tech Stack**: [Languages, frameworks, and tools used]
-- **Quality Standards**: [Performance, accessibility, security requirements]
--->
+- **Product**: A web marketplace for rare / out-of-production stuffies. The
+  differentiator is natural-language search tuned for collector vocabulary.
+  Two user roles: buyers (search, favorite, bid) and sellers (list).
+- **Platform**: Web only. Server-rendered HTML with HTMX fragments — no SPA.
+- **Tech Stack**: Python 3.12, FastAPI + Uvicorn, SQLModel + Alembic,
+  Jinja2 templates, HTMX 2.x, uv for packaging, pytest + httpx for tests.
+- **Hosting**: Cloud Run + Artifact Registry + Secret Manager + Neon
+  (Postgres with `pgvector`) + Cloud Storage for listing photos.
+- **Search**: Hybrid — `pgvector` cosine similarity + Postgres full-text
+  search (GIN on `tsvector`), fused at the application layer. The search
+  eval set in `tests/` is a hard quality gate; ranking regressions block PRs.
+- **Quality Standards**:
+  - `ruff check .`, `ruff format .`, `mypy app/`, and `pytest` must all pass.
+  - Coverage target on `app/`: 80%.
+  - HTMX endpoints: assert HTML substrings AND
+    `assert "<html" not in response.text` (catches accidental full-page returns).
+  - Search-ranking eval set must stay green.
+  - Migrations: every model change ships with an Alembic revision.
+  - No application URLs hardcoded — use `request.base_url` /
+    `X-Forwarded-Host` (see `docs/PATTERN-LIBRARY.md` pattern #4).
 
 Your reviews must ensure that code is:
 - Technically correct and follows best practices
@@ -144,22 +156,37 @@ Conduct thorough technical reviews of PRs linked to issues in the 'In Review' co
 
 ### 2. Architecture Compliance
 
-Ensure changes align with standards in `CLAUDE.md`.
+Ensure changes align with standards in `CLAUDE.md` and the design recorded
+in `docs/TECHNICAL-ARCHITECTURE.md`.
 
-<!--
-TEMPLATE: Fill in project-specific architecture compliance checks here.
-
-Example sections:
 **Technology Stack Compliance:**
-- [Language/framework version requirements]
-- [Build configuration]
-- [Testing patterns]
+- Python 3.12, FastAPI, SQLModel, Alembic, Jinja2, HTMX 2.x.
+- Dependencies are managed by `uv`; lockfile (`uv.lock`) updated when
+  `pyproject.toml` changes.
+- No client-side build step; static assets served directly from `static/`.
 
 **Code Organization:**
-- [Directory structure]
-- [Module organization]
-- [Test file location]
--->
+- `app/api/` — route modules (one per resource: `auth`, `listings`,
+  `search`, `bids`, `favorites`).
+- `app/models/` — SQLModel definitions.
+- `app/services/` — cross-cutting concerns (`embeddings`, `mail`, `gcs`).
+- `templates/` — Jinja2 templates; HTMX fragments live alongside their
+  parent page templates.
+- `tests/` — mirrors `app/`; HTTP tests use the in-memory SQLite session
+  fixture from `tests/conftest.py`.
+
+**Architectural Compliance Checks:**
+- New write paths inside DB transactions; no partial-write surprises.
+- Listing photos uploaded via signed GCS URLs (ADR-003). Reject PRs that
+  stream uploaded bytes through Cloud Run.
+- Embedding generation runs off the request path
+  (`BackgroundTasks` in v1, ADR-005). Reject PRs that block requests on
+  the embedding API.
+- Search uses `pgvector` + full-text fusion (ADR-002). Reject PRs that
+  introduce a separate vector store without an ADR update.
+- Auth uses bcrypt + signed-cookie sessions (ADR-004) — no plaintext
+  secrets, no rolled-from-scratch session crypto.
+- Reject `--no-verify` pushes and any code that hardcodes a base URL.
 
 ### 3. Approval Decision Criteria
 

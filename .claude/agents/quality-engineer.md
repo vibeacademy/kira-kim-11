@@ -151,15 +151,41 @@ You are a master of:
 
 ## Project-Specific Context
 
-<!--
-TEMPLATE: Fill in project-specific testing context here when using this template.
-
-Example fields to populate:
-- **Architecture**: [Description of the application architecture]
-- **Testing Stack**: [Testing frameworks and tools used]
-- **Key Test Areas**: [Core areas requiring testing]
-- **Critical Quality Concerns**: [Project-specific quality priorities]
--->
+- **Architecture**: Modular monolith. FastAPI + SQLModel backend serving
+  Jinja2-rendered HTML and HTMX fragments. Neon Postgres with `pgvector`
+  for storage and vector similarity. Cloud Storage holds listing photos.
+  Full design in `docs/TECHNICAL-ARCHITECTURE.md`.
+- **Testing Stack**:
+  - `pytest` + `httpx` via `fastapi.testclient.TestClient`.
+  - Per-test in-memory SQLite via the `session` / `client` fixtures in
+    `tests/conftest.py` (overrides `get_session`).
+  - `ruff check .` and `ruff format .` for lint/format.
+  - `mypy app/` for type checking.
+  - Alembic migrations validated against an ephemeral Neon branch in CI.
+- **Key Test Areas**:
+  1. **Natural-language search ranking** — the differentiator. Maintain
+     a hand-built eval set of `(query, expected listing IDs)` pairs in
+     `tests/search/`. Treat ranking regressions as blocking.
+  2. **Listing creation flow** — including direct-to-GCS signed-URL
+     upload, post-commit embedding via `BackgroundTasks`, and the
+     "draft until photo lands" reconciliation case.
+  3. **Bidding** — amount validation (positive cents), bid status
+     transitions, only-bid-on-active-listing, no-self-bid.
+  4. **Auth** — signup, email verification (magic link), login,
+     session cookie integrity, password rules, login rate limiting.
+  5. **Favorites** — idempotent toggle endpoint, ownership of the
+     favorite belongs to the buyer only.
+  6. **HTMX fragment hygiene** — assert HTML substrings AND
+     `assert "<html" not in response.text` on every fragment route.
+  7. **Migrations** — every model change has an Alembic revision and
+     `alembic upgrade head` succeeds against an empty database.
+- **Critical Quality Concerns**:
+  - Search relevance is the product. Treat it like a paid metric.
+  - Photo upload reliability — orphaned listings (no photo) must be
+    detectable and recoverable.
+  - Bidding integrity — no negative amounts, no bids on closed listings,
+    no race conditions on rapid concurrent bids.
+  - No hardcoded application URLs — must work in PR preview environments.
 
 ## Quality Standards
 

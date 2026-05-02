@@ -165,17 +165,17 @@ TEMPLATE: Fill in project-specific details below when using this template.
 ### Project Information
 
 - **License**: BSL 1.1 (converts to Apache 2.0 after 3 years per release)
-- **Project Name**: [Your project name]
-- **Repository**: [GitHub repo URL]
-- **Project Board**: [GitHub project board URL]
+- **Project Name**: stuffies — a marketplace for rare / out-of-production stuffed animals
+- **Repository**: https://github.com/vibeacademy/kira-kim-11
+- **Project Board**: https://github.com/users/kira-kim-11/projects/1
 - **Tech Stack**: FastAPI + Jinja2 + HTMX on Python 3.12
 - **Database layer**: SQLModel + Alembic
 - **Platform**: Google Cloud Platform (Cloud Run)
-- **Database**: Neon (serverless Postgres with per-PR branching)
+- **Database**: Neon (serverless Postgres with per-PR branching, `pgvector` enabled)
 - **Container Registry**: Artifact Registry
 - **Secrets**: Google Secret Manager
 - **Package manager**: uv
-- **Organization**: [GitHub org name]
+- **Organization**: vibeacademy
 
 ### Build & Test Commands
 
