@@ -130,6 +130,11 @@ technical architecture, agent specialization, and workflow activation.
 For step-by-step instructions, see
 [docs/GETTING-STARTED.md](./docs/GETTING-STARTED.md).
 
+For the full inventory of environment variables (local dev, CI/CD,
+Cloud Run, Secret Manager) and how to obtain each one, see
+[docs/SECRETS.md](./docs/SECRETS.md). Local dev:
+`cp .env.example .env` and edit.
+
 ## After Bootstrap
 
 Once bootstrap is complete, use the standard workflow:
